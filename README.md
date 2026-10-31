@@ -2,6 +2,8 @@
 
 These are the settings from the video. It's an IPsec tunnel from pfSense at home to an Azure VPN gateway, and BGP runs inside it, so routes on both sides come in by themselves. It uses the cheapest Azure gateway that supports BGP.
 
+▶️ Video: https://youtu.be/0HYaSX_fvBE
+
 > **Cost warning:** the VPN gateway is billed every hour while it exists, even if nothing is connected. In Canada Central (October 2026), VpnGw1AZ is $0.21/h, the Standard public IP is $0.005/h and the B2ts v2 test VM is about $0.012/h. That's about **$5.44 a day** or **$165 a month**, and the gateway alone is $153 a month. Make a budget alert and delete the resource group when you're done.
 
 ## Addressing used in the video
@@ -75,6 +77,10 @@ Forward UDP 500 and UDP 4500 to pfSense's WAN address (10.37.0.50 in the video).
 
 ## pfSense CE 2.9
 
+**Second home network (VLAN 51), already there when the video starts:** Interfaces → VLANs → Add: parent interface =
+your LAN port, VLAN tag 51, Save. Interfaces → Assignments: add the new VLAN, enable it, name it `LAN2`, IPv4 static
+10.51.0.1/24, Save, Apply. Only have one LAN? Skip this and leave 10.51.0.0/24 out of Networks to Distribute.
+
 **System → Routing → Gateways:** Default gateway IPv4 = **WANGW**, not Automatic.
 
 **System → Package Manager → Available Packages:** install **FRR**.
@@ -118,6 +124,10 @@ Forward UDP 500 and UDP 4500 to pfSense's WAN address (10.37.0.50 in the video).
 | Pass | TCP | 10.100.255.30 | any, port 179 (BGP) |
 | Pass | any | 10.100.0.0/16 | LAN subnets |
 
+`LAN subnets` only covers the main LAN. Connections you start from home work either way. If Azure should also start
+connections to the VLAN networks, make an alias (Firewall → Aliases → Networks: 10.50.0.0/24, 10.51.0.0/24,
+10.52.0.0/24) and use it as the destination instead.
+
 **Status → IPsec:** Connect. Phase 1 shows Established, and right below it the child SA (phase 2) shows Installed. In Azure, the connection's status changes to Connected.
 
 **Services → FRR Global/Zebra:** Enable, set a Master Password, Default Router ID 10.50.0.1, Save.
@@ -139,6 +149,14 @@ Neighbors tab → Add:
 ## MSS clamping: not needed here
 
 Azure's gateway already clamps TCP MSS to 1360 in both directions. pfSense's MSS setting only applies to networks in phase 2 entries, not to routes learned over BGP. A 50 MB copy ran the same with it and without it.
+
+## Test VM in Azure
+
+Create a virtual machine: resource group `rg-s2s-lab`, region Canada Central, image **Ubuntu Server 24.04**, size
+**B2ts v2** (about a cent an hour). On a newer subscription some small sizes have a quota of zero: if you get a quota
+error, pick a size from another family or request a quota increase (free). Authentication: SSH key or password.
+**Networking:** virtual network `vnet-lab`, subnet `snet-vms`, **Public IP: None**. Review + create. It gets 10.100.1.4,
+and you reach it only through the tunnel.
 
 ## Check it
 
